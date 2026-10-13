@@ -1,0 +1,41 @@
+{
+  "name": "@clearport/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/local.ts",
+    "start": "tsx --env-file=../../.env src/local.ts",
+    "build": "node scripts/build-lambdas.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "bootstrap": "tsx --env-file=../../.env scripts/bootstrap.ts",
+    "migrate": "tsx --env-file=../../.env scripts/migrate.ts",
+    "seed": "tsx --env-file=../../.env scripts/seed.ts",
+    "reset": "tsx --env-file=../../.env scripts/reset.ts && npm run bootstrap && npm run migrate && npm run seed"
+  },
+  "dependencies": {
+    "@aws-sdk/client-eventbridge": "^3.900.0",
+    "@aws-sdk/client-s3": "^3.900.0",
+    "@aws-sdk/client-sesv2": "^3.900.0",
+    "@aws-sdk/s3-presigned-post": "^3.900.0",
+    "@aws-sdk/s3-request-presigner": "^3.900.0",
+    "@clearport/contracts": "0.1.0",
+    "@clearport/kernel": "0.1.0",
+    "@clearport/workflow": "0.1.0",
+    "@hono/node-server": "^1.19.0",
+    "drizzle-orm": "^0.45.0",
+    "hono": "^4.9.0",
+    "jose": "^6.1.0",
+    "pg": "^8.16.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.150",
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.15.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "vitest": "^3.2.4"
+  }
+}
