@@ -1,6 +1,11 @@
 import i18n from './i18n';
 
-const locale = () => (i18n.language === 'ar' ? 'ar-AE' : 'en-GB');
+const locale = () => (i18n.language === 'ar' ? 'ar-OM' : 'en-GB');
+
+/** The agency's currency (Company settings), set once the session loads. Amounts default to it. */
+let baseCurrency = 'OMR';
+export const setBaseCurrency = (c: string) => { baseCurrency = c; };
+export const currencyCode = () => baseCurrency;
 
 export function fmtDate(v: string | Date | null | undefined) {
   if (!v) return '—';
@@ -11,10 +16,15 @@ export function fmtDateTime(v: string | Date | null | undefined) {
   if (!v) return '—';
   return new Intl.DateTimeFormat(locale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(v));
 }
-export function fmtMoney(amount: string | number | null | undefined, currency = 'AED') {
+export function fmtMoney(amount: string | number | null | undefined, currency = baseCurrency) {
   if (amount === null || amount === undefined || amount === '') return '—';
   const digits = ['KWD', 'BHD', 'OMR'].includes(currency) ? 3 : 2;
   return new Intl.NumberFormat(locale(), { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(amount));
+}
+/** Money without decimals, for headline tiles where space is tight. */
+export function fmtMoneyWhole(amount: string | number | null | undefined, currency = baseCurrency) {
+  if (amount === null || amount === undefined || amount === '') return '—';
+  return new Intl.NumberFormat(locale(), { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(amount));
 }
 export function relative(v: string | Date | null | undefined) {
   if (!v) return '';

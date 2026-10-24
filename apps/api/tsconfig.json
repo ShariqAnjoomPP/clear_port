@@ -1,5 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "types": ["node"], "lib": ["ES2023", "DOM"] },
-  "include": ["src", "scripts", "test"]
+  // Lite prototype code only. The production design in src/shared, src/modules, src/lambda,
+  // src/workers, src/local.ts, src/composition.ts, src/config.ts and scripts/*.ts is kept for reference but not compiled.
+  "include": ["src/lib", "src/functions", "src/dev-server.ts", "src/lambda.ts", "scripts/lite", "test"]
 }

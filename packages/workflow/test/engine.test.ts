@@ -48,9 +48,11 @@ describe('transition validation', () => {
     const r = planTransition(wf, { ...base, stageKey: 'DOCUMENTS', currentStatus: 'RECEIVED', to: 'VERIFIED', ctx: ctx({}) });
     expect(!r.ok && r.error).toEqual({ code: 'MISSING_DOCUMENT', documentType: 'BILL_OF_LADING' });
   });
-  it('requires POD on delivery', () => {
+  it('requires the receiver name on delivery (no signature)', () => {
+    const missing = planTransition(wf, { ...base, stageKey: 'DELIVERY', currentStatus: 'IN_TRANSIT', to: 'DELIVERED', ctx: ctx({}) });
+    expect(!missing.ok && missing.error).toEqual({ code: 'MISSING_FIELDS', fields: ['receiverName'] });
     const r = planTransition(wf, { ...base, fields: { receiverName: 'Ali' }, stageKey: 'DELIVERY', currentStatus: 'IN_TRANSIT', to: 'DELIVERED', ctx: ctx({}) });
-    expect(!r.ok && r.error).toEqual({ code: 'MISSING_FIELDS', fields: ['podSignature'] });
+    expect(r.ok).toBe(true);
   });
 });
 

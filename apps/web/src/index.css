@@ -1,34 +1,98 @@
 @import 'tailwindcss';
 
+/*
+ * Material 3 colour roles built from the ClearPort teal (#12857a) and navy (#0f2a43).
+ * The older token names (ink, muted, line, canvas, brand, ok, warn, bad, info) map onto these roles,
+ * so every screen shares one palette.
+ */
 @theme {
   --font-sans: 'Inter', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
-  --color-ink: #0f1b2a;
-  --color-muted: #5b6b7f;
-  --color-line: #e3e8ef;
-  --color-canvas: #f6f7f9;
+
+  /* M3 roles */
+  --color-primary: #0d7a6f;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #c5efe8;
+  --color-on-primary-container: #00201c;
+  --color-secondary: #0f2a43;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #d6e4f3;
+  --color-on-secondary-container: #0b1d2e;
+  --color-tertiary-container: #ffe0c2;
+  --color-on-tertiary-container: #2c1600;
+  --color-surface: #f6faf9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f0f5f3;
+  --color-surface-container: #eaf0ee;
+  --color-surface-container-high: #e4ebe9;
+  --color-surface-container-highest: #dee5e3;
+  --color-on-surface: #161d1c;
+  --color-on-surface-variant: #3f4947;
+  --color-outline: #6f7977;
+  --color-outline-variant: #c3ccc9;
+
+  /* Status roles (colour + container) */
+  --color-success: #1b6d33;
+  --color-success-container: #cdeed5;
+  --color-warning: #8a5000;
+  --color-warning-container: #ffddb8;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-info-role: #2a5ea8;
+  --color-info-container: #d8e3ff;
+
+  /* Older names used across pages, mapped to the roles above */
+  --color-ink: #161d1c;
+  --color-muted: #55615f;
+  --color-line: #dbe3e0;
+  --color-canvas: #f0f5f3;
   --color-navy: #0f2a43;
   --color-navy-2: #16385a;
-  --color-brand: #12857a;
-  --color-brand-2: #0e6b62;
-  --color-brand-soft: #e3f4f1;
-  --color-ok: #15803d;
-  --color-ok-soft: #e7f6ec;
-  --color-warn: #b45309;
-  --color-warn-soft: #fdf3e2;
-  --color-bad: #b91c1c;
-  --color-bad-soft: #fdecec;
-  --color-info: #1d4ed8;
-  --color-info-soft: #e8efff;
+  --color-brand: #0d7a6f;
+  --color-brand-2: #0a6058;
+  --color-brand-soft: #c5efe8;
+  --color-ok: #1b6d33;
+  --color-ok-soft: #cdeed5;
+  --color-warn: #8a5000;
+  --color-warn-soft: #ffddb8;
+  --color-bad: #ba1a1a;
+  --color-bad-soft: #ffdad6;
+  --color-info: #2a5ea8;
+  --color-info-soft: #d8e3ff;
+
+  /* Shape and elevation */
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px 1px rgb(0 0 0 / 0.04);
+  --shadow-3: 0 4px 8px 3px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.1);
 }
 
 html, body, #root { height: 100%; }
-body { background: var(--color-canvas); color: var(--color-ink); -webkit-font-smoothing: antialiased; }
+body {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
 [dir='rtl'] body { font-family: 'IBM Plex Sans Arabic', 'Inter', ui-sans-serif, system-ui, sans-serif; }
-:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* Safe areas for notched phones when installed as an app */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.bottom-safe { bottom: calc(env(safe-area-inset-bottom) + 0px); }
+
+/* Horizontal chip rows scroll without a visible scrollbar */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Bottom sheet entrance */
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.animate-sheet { animation: sheet-up 0.18s ease-out; }
 
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
-  .print-sheet { box-shadow: none !important; border: none !important; margin: 0 !important; }
+  .print-sheet { box-shadow: none !important; border: none !important; margin: 0 !important; transform: none !important; }
 }

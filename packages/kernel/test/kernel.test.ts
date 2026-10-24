@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addAmounts, can, containerCheckDigit, parseContainerList, percentOf, uuidv7, validateContainerNo } from '../src';
+import { addAmounts, can, checkContainerLength, containerCheckDigit, freeTimeEnd, parseContainerList, percentOf, uuidv7, validateContainerNo } from '../src';
 
 describe('ISO 6346 container numbers', () => {
   it('accepts valid numbers', () => {
@@ -42,4 +42,20 @@ describe('permissions', () => {
     expect(can(['CUSTOMER'], 'portal.access')).toBe(true);
   });
   it('supports stage wildcards for coordinators', () => expect(can(['COORDINATOR'], 'stage.CCRO.update')).toBe(true));
+});
+
+describe('prototype container length check', () => {
+  it('accepts 11 letters/digits after tidying, with no check digit', () => {
+    expect(checkContainerLength('mnbu 035865-7')).toEqual({ valid: true, value: 'MNBU0358657' });
+    expect(checkContainerLength('CSQU3054384').valid).toBe(true); // wrong ISO check digit is fine in the prototype
+    expect(checkContainerLength('CSQU305438')).toMatchObject({ valid: false, error: 'LENGTH' });
+  });
+});
+
+describe('free time', () => {
+  it('counts the arrival day as day 1', () => {
+    expect(freeTimeEnd('2026-09-14', 9)).toBe('2026-09-22');
+    expect(freeTimeEnd('2026-09-30', 2)).toBe('2026-10-01');
+    expect(freeTimeEnd('2026-09-14', 0)).toBe('2026-09-14');
+  });
 });

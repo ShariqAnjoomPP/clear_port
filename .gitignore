@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+cdk.out/
+*.tsbuildinfo
+
+# local data and env
+.env
+.env.*
+!.env.example
+apps/api/.data/
+
+# tooling caches and reports
+.turbo/
+.vite/
+test-results/
+playwright-report/
+coverage/
+
+# OS / editor
+.DS_Store
+.idea/
+
+# lite prototype build output
+dist-lite/
+
+# Vercel prebuilt output (scripts/build-vercel.mjs) and CLI link
+.vercel/

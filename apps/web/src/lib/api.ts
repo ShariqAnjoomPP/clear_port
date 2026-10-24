@@ -1,5 +1,3 @@
-import { uuidv7 } from '@clearport/kernel';
-
 /** RFC 9457 problem from the API, thrown by every call so screens can show the server's exact reasons. */
 export class ApiProblem extends Error {
   status: number;
@@ -19,59 +17,27 @@ export class ApiProblem extends Error {
 
 export const isNetworkError = (e: unknown) => e instanceof TypeError;
 
-export type SessionUser = { id: string; name: string; email: string; roles: string[]; customerId: string | null; locale: string; tenantName?: string };
-
-// Access token lives only in memory (never localStorage); the refresh token is an HttpOnly cookie.
-let accessToken: string | null = null;
-let refreshing: Promise<SessionUser | null> | null = null;
-const listeners = new Set<(u: SessionUser | null) => void>();
-export const onSessionChange = (fn: (u: SessionUser | null) => void) => {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
-};
-export function setSession(token: string | null, user: SessionUser | null) {
-  accessToken = token;
-  listeners.forEach((l) => l(user));
-}
-
-export function refreshSession(): Promise<SessionUser | null> {
-  refreshing ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
-    .then(async (r) => {
-      if (!r.ok) return null;
-      const d = (await r.json()) as { accessToken: string; user: SessionUser };
-      setSession(d.accessToken, d.user);
-      return d.user;
-    })
-    .catch(() => null)
-    .finally(() => {
-      refreshing = null;
-    });
-  return refreshing;
-}
-
 export interface RequestOptions {
-  idempotencyKey?: string;
   ifMatch?: number;
-  retry?: boolean;
+  /** Extra request headers (e.g. the tracking page's x-track-token). */
+  headers?: Record<string, string>;
 }
 
+/** Calls a backend function: every path is /api/<function>/... (same path locally and behind API Gateway). */
 export async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (body !== undefined) headers['content-type'] = 'application/json';
-  if (accessToken) headers.authorization = `Bearer ${accessToken}`;
-  if (method !== 'GET') headers['idempotency-key'] = opts.idempotencyKey ?? uuidv7();
-  if (opts.ifMatch !== undefined) headers['if-match'] = `"${opts.ifMatch}"`;
-  const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'include' });
-  if (res.status === 401 && path.startsWith('/v1') && opts.retry !== false) {
-    if (await refreshSession()) return request<T>(method, path, body, { ...opts, retry: false });
-    setSession(null, null);
-  }
+  const res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!res.ok) {
     let p: ConstructorParameters<typeof ApiProblem>[0];
     try {
       p = await res.json();
     } catch {
       p = { status: res.status, title: res.statusText };
+    }
+    // Signed out (or the session expired): staff calls go to the sign-in page, then come back here.
+    if (res.status === 401 && !path.startsWith('/public/') && !path.startsWith('/session/login') && !window.location.pathname.startsWith('/login')) {
+      window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     }
     throw new ApiProblem({ ...p, status: res.status });
   }
@@ -80,7 +46,7 @@ export async function request<T>(method: string, path: string, body?: unknown, o
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>('GET', path),
+  get: <T>(path: string, opts?: RequestOptions) => request<T>('GET', path, undefined, opts),
   post: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('POST', path, body ?? {}, opts),
   put: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('PUT', path, body ?? {}, opts),
   patch: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('PATCH', path, body ?? {}, opts),
@@ -100,28 +66,31 @@ async function compressImage(file: File): Promise<File> {
   return blob ? new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }) : file;
 }
 
-type UploadTarget = { method: 'POST' | 'PUT'; url: string; fields?: Record<string, string>; headers?: Record<string, string>; key: string };
 export type DocumentRow = { id: string; docType: string; fileName: string; contentType: string; sizeBytes: number; customerVisible: boolean; createdAt: string; uploadedByName: string | null; containerId: string | null };
 
-/** Presigned upload straight to storage, then register the document with the API. */
-export async function uploadDocument(jobId: string, original: File, docType: string, extra: { containerId?: string; stageInstanceId?: string; customerVisible?: boolean } = {}) {
+/** Uploads a file for a job to the documents function (multipart). Large photos are shrunk on the device first. */
+export async function uploadDocument(jobId: string, original: File, docType: string, extra: { containerId?: string; stageInstanceId?: string; customerVisible?: boolean; covers?: string[]; referenceNo?: string; issueDate?: string } = {}) {
   const file = await compressImage(original);
   const contentType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-  const target = await api.post<UploadTarget>(`/v1/clearance/jobs/${jobId}/documents/presign`, { fileName: file.name, contentType, sizeBytes: file.size });
-  if (target.method === 'PUT') {
-    const r = await fetch(target.url, { method: 'PUT', headers: target.headers, body: file });
-    if (!r.ok) throw new ApiProblem({ status: r.status, title: 'Upload failed', detail: 'The file could not be uploaded' });
-  } else {
-    const fd = new FormData();
-    Object.entries(target.fields ?? {}).forEach(([k, v]) => fd.append(k, v));
-    fd.append('file', file);
-    const r = await fetch(target.url, { method: 'POST', body: fd });
-    if (!r.ok) throw new ApiProblem({ status: r.status, title: 'Upload failed', detail: 'The file could not be uploaded' });
+  const form = new FormData();
+  form.set('jobId', jobId);
+  form.set('docType', docType);
+  if (extra.containerId) form.set('containerId', extra.containerId);
+  if (extra.stageInstanceId) form.set('stageInstanceId', extra.stageInstanceId);
+  form.set('customerVisible', String(!!extra.customerVisible));
+  // A scanned pack: the other documents inside the same file.
+  if (extra.covers?.length) form.set('covers', extra.covers.join(','));
+  if (extra.referenceNo) form.set('referenceNo', extra.referenceNo);
+  if (extra.issueDate) form.set('issueDate', extra.issueDate);
+  form.set('file', new File([file], file.name, { type: contentType }));
+  const res = await fetch('/api/documents', { method: 'POST', body: form });
+  if (!res.ok) {
+    const p = await res.json().catch(() => ({ title: 'Upload failed', detail: 'The file could not be uploaded' }));
+    throw new ApiProblem({ ...p, status: res.status });
   }
-  return api.post<DocumentRow>(`/v1/clearance/jobs/${jobId}/documents`, { uploadKey: target.key, fileName: file.name, contentType, sizeBytes: file.size, docType, ...extra });
+  return (await res.json()) as DocumentRow;
 }
 
-export async function openDocument(id: string) {
-  const { url } = await api.get<{ url: string }>(`/v1/clearance/documents/${id}/download`);
-  window.open(url, '_blank', 'noopener');
+export function openDocument(id: string) {
+  window.open(`/api/documents/${id}/file`, '_blank', 'noopener');
 }
