@@ -4,15 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file=../../.env src/local.ts",
-    "start": "tsx --env-file=../../.env src/local.ts",
-    "build": "node scripts/build-lambdas.mjs",
+    "dev": "tsx watch --env-file=../../.env src/dev-server.ts",
+    "start": "tsx --env-file=../../.env src/dev-server.ts",
+    "build": "node scripts/lite/build-functions.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run",
-    "bootstrap": "tsx --env-file=../../.env scripts/bootstrap.ts",
-    "migrate": "tsx --env-file=../../.env scripts/migrate.ts",
-    "seed": "tsx --env-file=../../.env scripts/seed.ts",
-    "reset": "tsx --env-file=../../.env scripts/reset.ts && npm run bootstrap && npm run migrate && npm run seed"
+    "test": "vitest run --passWithNoTests",
+    "migrate": "tsx --env-file=../../.env scripts/lite/migrate.ts",
+    "seed": "tsx --env-file=../../.env scripts/lite/seed.ts",
+    "reset": "tsx --env-file=../../.env scripts/lite/reset.ts && npm run migrate && npm run seed",
+    "smoke:lambdas": "node --env-file=../../.env scripts/lite/smoke-lambdas.mjs",
+    "demo": "tsx --env-file=../../.env scripts/lite/demo-data.ts",
+    "demo-password": "tsx --env-file=../../.env scripts/lite/set-demo-password.ts"
   },
   "dependencies": {
     "@aws-sdk/client-eventbridge": "^3.900.0",

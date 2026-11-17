@@ -115,17 +115,17 @@ export const DEFAULT_STAGES: StageDef[] = [
   },
   {
     key: 'CCRO', level: 'JOB', order: 6, phase: 'CCRO', ownerRole: 'PRO',
-    label: t('CCRO (release order)', 'أمر الإفراج'),
+    label: t('Port release (gate pass)', 'الإفراج من الميناء'),
     statuses: [
       { key: 'NOT_STARTED', label: t('Not started', 'لم يبدأ') },
       { key: 'APPLIED', label: t('Applied', 'تم التقديم') },
       { key: 'ISSUED', label: t('Issued', 'صدر'), done: true },
     ],
     initial: 'NOT_STARTED', slaHours: 24,
-    fields: [{ key: 'referenceNo', label: t('CCRO no.', 'رقم الأمر'), type: 'text' }],
+    fields: [{ key: 'referenceNo', label: t('Release no.', 'رقم الإفراج'), type: 'text' }],
     transitions: [
       {
-        from: ['NOT_STARTED'], to: 'APPLIED', label: t('Apply for CCRO', 'تقديم طلب الإفراج'), primary: true,
+        from: ['NOT_STARTED'], to: 'APPLIED', label: t('Apply for port release', 'تقديم طلب الإفراج'), primary: true,
         guard: {
           all: [
             { stage: 'DO', statusIn: ['DO_RECEIVED'] },
@@ -134,7 +134,7 @@ export const DEFAULT_STAGES: StageDef[] = [
           ],
         },
       },
-      { from: ['APPLIED'], to: 'ISSUED', label: t('CCRO issued', 'صدر أمر الإفراج'), primary: true, requiredFields: ['referenceNo'] },
+      { from: ['APPLIED'], to: 'ISSUED', label: t('Port release issued', 'صدر الإفراج'), primary: true, requiredFields: ['referenceNo'] },
     ],
     onEnter: { ISSUED: ['SPAWN_CONTAINER_STAGES', 'NOTIFY_CUSTOMER:CLEARED'] },
   },
@@ -200,11 +200,10 @@ export const DEFAULT_STAGES: StageDef[] = [
     initial: 'PENDING', slaHours: 24,
     fields: [
       { key: 'receiverName', label: t('Received by', 'المستلم'), type: 'text' },
-      { key: 'podSignature', label: t('Receiver signature', 'توقيع المستلم'), type: 'signature' },
     ],
     transitions: [
       { from: ['PENDING'], to: 'IN_TRANSIT', label: t('Out for delivery', 'خرجت للتسليم'), primary: true, guard: { containerStage: 'RELEASE', statusIn: ['GATED_OUT'] } },
-      { from: ['IN_TRANSIT'], to: 'DELIVERED', label: t('Delivered (POD)', 'تم التسليم'), primary: true, requiredFields: ['receiverName', 'podSignature'] },
+      { from: ['IN_TRANSIT'], to: 'DELIVERED', label: t('Delivered (POD)', 'تم التسليم'), primary: true, requiredFields: ['receiverName'] },
       { from: ['DELIVERED'], to: 'EMPTY_RETURNED', label: t('Empty returned', 'أعيدت الحاوية فارغة') },
     ],
     onEnter: { DELIVERED: ['CHECK_JOB_COMPLETE', 'NOTIFY_CUSTOMER:DELIVERED'] },

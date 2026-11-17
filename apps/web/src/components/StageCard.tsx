@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { CheckCircle2, Clock, Lock } from 'lucide-react';
 import { api } from '../lib/api';
-import { useUsers } from '../lib/hooks';
+import { useStaff } from '../lib/hooks';
+import { useSession } from '../lib/session';
 import { relative, fmtDateTime } from '../lib/format';
 import { L } from '../lib/i18n';
 import { StageStatus } from './StatusBadge';
@@ -16,10 +17,13 @@ export function StageCard({
   jobId, stage, canAssign, containers, onChanged, compact,
 }: { jobId: string; stage: StageView; canAssign: boolean; containers: { id: string; containerNo: string }[]; onChanged: () => void; compact?: boolean }) {
   const { t } = useTranslation();
-  const users = useUsers();
+  const staff = useStaff();
+  // Per-step assignment is a company setting: off for a one-person agency, on for teams.
+  const assignSteps = useSession().data?.company.assignSteps ?? false;
   const [step, setStep] = useState<NextStep | null>(null);
   const [assignError, setAssignError] = useState<unknown>(null);
-  const candidates = (users.data ?? []).filter((u) => u.active && (u.roles.includes(stage.ownerRole) || u.roles.includes('COORDINATOR')));
+  // People who usually own this kind of stage, plus coordinators who can step in.
+  const candidates = (staff.data ?? []).filter((p) => p.role === stage.ownerRole || p.role === 'COORDINATOR');
   const waiting = stage.nextSteps.filter((s) => !s.gateOpen).flatMap((s) => s.waitingFor);
   const uniqueWaiting = [...new Set(waiting)];
 
@@ -38,7 +42,9 @@ export function StageCard({
 
       {!compact && (
         <div className="mt-3 space-y-1.5 text-xs text-muted">
-          {canAssign && !stage.done ? (
+          {!assignSteps ? (
+            stage.assignee && <p>{t('common.assignee')}: <span className="text-ink">{stage.assignee.name}</span></p>
+          ) : canAssign && !stage.done ? (
             <Select
               aria-label={t('common.assignee')}
               className="h-8 text-xs"
@@ -46,7 +52,7 @@ export function StageCard({
               onChange={async (e) => {
                 setAssignError(null);
                 try {
-                  await api.put(`/v1/workflow/jobs/${jobId}/stages/${stage.id}/assignee`, { assigneeId: e.target.value || null });
+                  await api.put(`/workflow/jobs/${jobId}/stages/${stage.id}/assignee`, { assigneeId: e.target.value || null });
                   onChanged();
                 } catch (err) {
                   setAssignError(err);
@@ -54,7 +60,7 @@ export function StageCard({
               }}
             >
               <option value="">{t('common.unassigned')}</option>
-              {candidates.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roles.join(', ').toLowerCase()}</option>)}
+              {candidates.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.role.toLowerCase()}</option>)}
             </Select>
           ) : (
             <p>{t('common.assignee')}: <span className="text-ink">{stage.assignee?.name ?? t('common.unassigned')}</span></p>

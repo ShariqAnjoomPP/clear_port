@@ -1,145 +1,127 @@
-import { Suspense, useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
+import { Suspense, type ReactNode } from 'react';
+import { Link, Outlet, useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { Bell, BarChart3, Boxes, ClipboardList, CloudOff, FileStack, Kanban, Languages, LogOut, Menu, RefreshCw, Search, Settings, Smartphone, Truck, Users, Wallet, X } from 'lucide-react';
-import type { Permission } from '@clearport/kernel';
+import { ArrowLeft, Bell, FileStack, Home, LayoutGrid, Plus, Search, Users } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth } from '../lib/auth';
-import { useOnline, useOutbox } from '../lib/hooks';
-import i18n, { setLanguage } from '../lib/i18n';
-import { syncOutbox } from '../lib/offline';
-import { Spinner } from '../components/ui';
-
-type NavItem = { to: string; label: string; icon: ReactNode; perm?: Permission; fieldOnly?: boolean; officeOnly?: boolean };
+import { useSession } from '../lib/session';
+import { IconButton, ProblemAlert, SnackbarProvider, Spinner } from '../components/ui';
 
 export function Brand({ light = true }: { light?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <img src="/icon.svg" alt="" className="size-8 rounded-lg" />
-      <span className={clsx('text-base font-semibold tracking-tight', light ? 'text-white' : 'text-ink')}>ClearPort</span>
+      <span className={clsx('text-base font-semibold tracking-tight', light ? 'text-white' : 'text-on-surface')}>ClearPort</span>
     </div>
   );
 }
 
-export function SyncPill() {
-  const { t } = useTranslation();
-  const online = useOnline();
-  const queued = useOutbox();
-  const pending = queued.filter((q) => q.status === 'pending').length;
-  const failed = queued.filter((q) => q.status === 'failed').length;
-  if (online && !pending && !failed) return null;
+type Dest = { to: string; label: string; icon: ReactNode; match: (path: string) => boolean };
+const MORE_PATHS = ['/more', '/tasks', '/trips', '/finance', '/invoices', '/reports', '/notifications', '/settings', '/containers'];
+const DESTINATIONS: Dest[] = [
+  { to: '/', label: 'Home', icon: <Home className="size-6" />, match: (p) => p === '/' || p.startsWith('/search') },
+  { to: '/jobs', label: 'Jobs', icon: <FileStack className="size-6" />, match: (p) => p.startsWith('/jobs') },
+  { to: '/customers', label: 'Customers', icon: <Users className="size-6" />, match: (p) => p.startsWith('/customers') },
+  { to: '/more', label: 'More', icon: <LayoutGrid className="size-6" />, match: (p) => MORE_PATHS.some((m) => p.startsWith(m)) },
+];
+/** Top-level screens: no back arrow. */
+const ROOTS = new Set(['/', '/jobs', '/customers', '/more']);
+
+/** Phone: bottom navigation bar with a pill behind the active icon (Material 3). */
+function BottomNav({ path }: { path: string }) {
   return (
-    <button onClick={() => void syncOutbox()} className={clsx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium', !online ? 'bg-warn-soft text-warn' : failed ? 'bg-bad-soft text-bad' : 'bg-info-soft text-info')}>
-      {!online ? <CloudOff className="size-3.5" /> : <RefreshCw className="size-3.5" />}
-      {!online ? t('common.offline') : failed ? `${failed} update(s) need attention` : t('common.pending', { count: pending })}
-    </button>
+    <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant/40 bg-surface-container lg:hidden" aria-label="Main">
+      <div className="mx-auto grid max-w-lg grid-cols-4">
+        {DESTINATIONS.map((d) => {
+          const on = d.match(path);
+          return (
+            <Link key={d.to} to={d.to} className="flex h-20 flex-col items-center justify-center gap-1" aria-current={on ? 'page' : undefined}>
+              <span className={clsx('flex h-8 w-16 items-center justify-center rounded-full transition', on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')}>{d.icon}</span>
+              <span className={clsx('text-xs', on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant')}>{d.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+/** Wide screens: navigation rail on the left, with the "create job" action on top. */
+function NavRail({ path }: { path: string }) {
+  const navigate = useNavigate();
+  return (
+    <nav className="no-print fixed inset-y-0 start-0 z-30 hidden w-24 flex-col items-center gap-3 bg-surface-container-low py-4 lg:flex" aria-label="Main">
+      <img src="/icon.svg" alt="ClearPort" className="mb-2 size-10 rounded-xl" />
+      <button onClick={() => void navigate({ to: '/jobs/new' })} className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-[var(--shadow-1)]" aria-label="Create job" title="Create job">
+        <Plus className="size-6" />
+      </button>
+      {DESTINATIONS.map((d) => {
+        const on = d.match(path);
+        return (
+          <Link key={d.to} to={d.to} className="flex flex-col items-center gap-1" aria-current={on ? 'page' : undefined}>
+            <span className={clsx('flex h-8 w-14 items-center justify-center rounded-full transition', on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-on-surface/8')}>{d.icon}</span>
+            <span className={clsx('text-xs', on ? 'font-semibold text-on-surface' : 'font-medium text-on-surface-variant')}>{d.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
 export function AppShell() {
-  const { t } = useTranslation();
-  const { user, ready, can, has, logout } = useAuth();
+  const session = useSession();
   const navigate = useNavigate();
+  const router = useRouter();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  useEffect(() => setOpen(false), [path]);
+  const unread = useQuery({ queryKey: ['inbox'], queryFn: () => api.get<{ unread: number }>('/engagement/notifications'), refetchInterval: 30_000 });
 
-  const unread = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => api.get<{ unread: number }>('/v1/notifications'),
-    refetchInterval: 30_000,
-    enabled: !!user && !has('CUSTOMER'),
-  });
-
-  if (!ready) return <Spinner />;
-  if (!user) return <Navigate to="/login" />;
-  if (has('CUSTOMER')) return <Navigate to="/portal" />;
-
-  const field = user.roles.some((r) => ['PRO', 'INSPECTOR', 'DRIVER'].includes(r));
-  const office = user.roles.some((r) => ['OWNER', 'COORDINATOR', 'ACCOUNTS', 'ADMIN'].includes(r));
-  const nav: NavItem[] = [
-    { to: '/board', label: t('nav.board'), icon: <Kanban className="size-4" />, perm: 'job.read', officeOnly: true },
-    { to: '/field', label: t('nav.tasks'), icon: <Smartphone className="size-4" />, fieldOnly: true },
-    { to: '/tasks', label: t('nav.tasks'), icon: <ClipboardList className="size-4" />, officeOnly: true },
-    { to: '/jobs', label: t('nav.jobs'), icon: <FileStack className="size-4" />, perm: 'job.read' },
-    { to: '/containers', label: t('nav.containers'), icon: <Boxes className="size-4" />, perm: 'job.read', officeOnly: true },
-    { to: '/customers', label: t('nav.customers'), icon: <Users className="size-4" />, perm: 'customer.read' },
-    { to: '/trips', label: t('nav.trips'), icon: <Truck className="size-4" />, perm: 'field.manage' },
-    { to: '/finance', label: t('nav.finance'), icon: <Wallet className="size-4" />, perm: 'invoice.read' },
-    { to: '/reports', label: t('nav.reports'), icon: <BarChart3 className="size-4" />, perm: 'report.read' },
-    { to: '/settings', label: t('nav.settings'), icon: <Settings className="size-4" />, perm: 'admin.config' },
-  ].filter((n) => (!n.perm || can(n.perm as Permission)) && (!n.fieldOnly || (field && !office)) && (!n.officeOnly || office)) as NavItem[];
-
-  const sidebar = (
-    <nav className="flex h-full flex-col bg-navy text-white/80">
-      <div className="flex h-16 items-center justify-between px-4">
-        <Brand />
-        <button className="rounded p-1 hover:bg-white/10 lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu"><X className="size-5" /></button>
+  if (session.isLoading) return <Spinner />;
+  if (!session.data) {
+    return (
+      <div className="mx-auto max-w-lg p-6">
+        <ProblemAlert error={session.error ?? new Error('Could not reach the API')} />
+        <p className="mt-3 text-sm text-on-surface-variant">Is the API running? Start everything with <code>npm run dev</code>.</p>
       </div>
-      <div className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-        {nav.map((n) => (
-          <Link key={n.to} to={n.to} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-white/10 hover:text-white" activeProps={{ className: 'bg-white/12 text-white font-medium' }}>
-            {n.icon}
-            {n.label}
-          </Link>
-        ))}
-      </div>
-      <div className="border-t border-white/10 p-3 text-xs">
-        <p className="truncate font-medium text-white">{user.name}</p>
-        <p className="truncate text-white/60">{user.roles.join(' · ').toLowerCase()} · {user.tenantName}</p>
-        <button onClick={() => void logout().then(() => navigate({ to: '/login' }))} className="mt-2 inline-flex items-center gap-1.5 text-white/70 hover:text-white">
-          <LogOut className="size-3.5" /> {t('common.signOut')}
-        </button>
-      </div>
-    </nav>
-  );
+    );
+  }
+  const isRoot = ROOTS.has(path);
+  const count = unread.data?.unread ?? 0;
 
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-60 shrink-0 lg:block">{sidebar}</aside>
-      {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 start-0 w-64">{sidebar}</aside>
-        </div>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="no-print sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-white/90 px-4 backdrop-blur">
-          <button className="rounded-lg p-2 hover:bg-canvas lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="size-5" /></button>
-          {can('job.read') && (
-            <form
-              className="relative hidden max-w-md flex-1 sm:block"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void navigate({ to: '/jobs', search: { q } });
-              }}
-            >
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} className="h-10 w-full rounded-lg border border-line bg-canvas ps-9 pe-3 text-sm focus:border-brand focus:bg-white focus:outline-none" />
-            </form>
-          )}
-          <div className="ms-auto flex items-center gap-2">
-            <SyncPill />
-            <button onClick={() => setLanguage(i18n.language === 'ar' ? 'en' : 'ar')} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted hover:bg-canvas hover:text-ink">
-              <Languages className="size-4" /> <span className="hidden sm:inline">{t('common.language')}</span>
-            </button>
-            <Link to="/notifications" className="relative rounded-lg p-2 text-muted hover:bg-canvas hover:text-ink" aria-label={t('nav.notifications')}>
-              <Bell className="size-5" />
-              {!!unread.data?.unread && <span className="absolute -end-0.5 -top-0.5 flex size-5 items-center justify-center rounded-full bg-bad text-[10px] font-bold text-white">{unread.data.unread}</span>}
-            </Link>
+    <SnackbarProvider>
+      <div className="min-h-full lg:ps-24">
+        <NavRail path={path} />
+        {/* Small top app bar: back on sub-screens, search and notifications everywhere */}
+        <header className="no-print pt-safe sticky top-0 z-20 bg-surface/95 backdrop-blur">
+          <div className="mx-auto flex h-16 max-w-5xl items-center gap-1 px-1 sm:px-3">
+            {isRoot ? (
+              <div className="flex min-w-0 items-center gap-2 px-3">
+                <img src="/icon.svg" alt="" className="size-8 rounded-lg lg:hidden" />
+                <span className="truncate text-base font-semibold">{session.data.company.name}</span>
+              </div>
+            ) : (
+              <IconButton label="Back" onClick={() => (window.history.length > 1 ? router.history.back() : void navigate({ to: '/' }))}>
+                <ArrowLeft className="size-6 rtl:rotate-180" />
+              </IconButton>
+            )}
+            <div className="ms-auto flex items-center">
+              {path !== '/' && !path.startsWith('/search') && (
+                <IconButton label="Search" onClick={() => void navigate({ to: '/search', search: { q: '' } })}><Search className="size-6" /></IconButton>
+              )}
+              <IconButton label="Notifications" onClick={() => void navigate({ to: '/notifications' })}>
+                <Bell className="size-6" />
+                {count > 0 && <span className="absolute end-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-white">{count > 99 ? '99+' : count}</span>}
+              </IconButton>
+            </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1400px] p-4 sm:p-6">
-            <Suspense fallback={<Spinner />}>
-              <Outlet />
-            </Suspense>
-          </div>
+        <main className="mx-auto max-w-5xl px-4 pt-1 pb-[calc(env(safe-area-inset-bottom)+104px)] lg:px-8 lg:pb-12">
+          <Suspense fallback={<Spinner />}>
+            <Outlet />
+          </Suspense>
         </main>
+        <BottomNav path={path} />
       </div>
-    </div>
+    </SnackbarProvider>
   );
 }

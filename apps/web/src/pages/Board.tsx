@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { AlertTriangle, Clock, Plus } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth } from '../lib/auth';
-import { daysUntil, fmtDate, fmtMoney, relative } from '../lib/format';
+import { useStaff } from '../lib/hooks';
+import { daysUntil, fmtDate, fmtMoneyWhole, relative } from '../lib/format';
 import { PriorityBadge } from '../components/StatusBadge';
 import { Badge, Button, PageHeader, Select, Spinner, Stat } from '../components/ui';
 
@@ -52,12 +52,12 @@ export function JobCard({ j }: { j: BoardItem }) {
 
 export function BoardPage() {
   const { t } = useTranslation();
-  const { user, can } = useAuth();
-  const [mine, setMine] = useState(false);
+  const coordinators = useStaff('COORDINATOR');
+  const [coordinatorId, setCoordinatorId] = useState('');
   const [priority, setPriority] = useState('');
-  const board = useQuery({ queryKey: ['board'], queryFn: () => api.get<{ items: BoardItem[] }>('/v1/insight/board').then((r) => r.items), refetchInterval: 20_000 });
-  const dash = useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<{ kpis: Record<string, string | number> }>('/v1/insight/dashboard'), enabled: can('report.read'), refetchInterval: 60_000 });
-  const items = useMemo(() => (board.data ?? []).filter((j) => (!mine || j.coordinatorId === user?.id) && (!priority || j.priority === priority)), [board.data, mine, priority, user?.id]);
+  const board = useQuery({ queryKey: ['board'], queryFn: () => api.get<{ items: BoardItem[] }>('/insight/board').then((r) => r.items), refetchInterval: 20_000 });
+  const dash = useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<{ kpis: Record<string, string | number> }>('/insight/dashboard'), refetchInterval: 60_000 });
+  const items = useMemo(() => (board.data ?? []).filter((j) => (!coordinatorId || j.coordinatorId === coordinatorId) && (!priority || j.priority === priority)), [board.data, coordinatorId, priority]);
   const k = dash.data?.kpis;
 
   return (
@@ -67,11 +67,13 @@ export function BoardPage() {
         subtitle={t('board.subtitle')}
         actions={
           <>
-            <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> {t('board.onlyMine')}</label>
+            <Select value={coordinatorId} onChange={(e) => setCoordinatorId(e.target.value)} className="w-44" aria-label="Coordinator">
+              <option value="">All coordinators</option>{(coordinators.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
             <Select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-36" aria-label="Priority">
               <option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option>
             </Select>
-            {can('job.create') && <Link to="/jobs/new"><Button variant="primary"><Plus className="size-4" /> {t('board.newJob')}</Button></Link>}
+            <Link to="/jobs/new"><Button variant="primary"><Plus className="size-4" /> {t('board.newJob')}</Button></Link>
           </>
         }
       />
@@ -81,12 +83,12 @@ export function BoardPage() {
           <Stat label="Overdue" value={k.overdue_jobs} tone={Number(k.overdue_jobs) ? 'bad' : undefined} />
           <Stat label="Containers active" value={k.active_containers} />
           <Stat label="Free time ≤ 3 days" value={k.free_time_risk} tone={Number(k.free_time_risk) ? 'warn' : undefined} hint="Demurrage risk" />
-          <Stat label="Unbilled payments" value={fmtMoney(String(k.unbilled_amount ?? 0))} />
+          <Stat label="Unbilled payments" value={fmtMoneyWhole(String(k.unbilled_amount ?? 0))} />
           <Stat label="Avg. days to delivery" value={k.avg_days_to_delivery ?? '—'} hint="Last 90 days" />
         </div>
       )}
       {board.isLoading ? <Spinner /> : (
-        <div className="grid gap-4 overflow-x-auto pb-2 md:grid-cols-[repeat(5,minmax(210px,1fr))]">
+        <div className="grid grid-cols-1 gap-4 overflow-x-auto pb-2 md:grid-cols-[repeat(5,minmax(210px,1fr))]">
           {COLUMNS.map((col) => {
             const list = items.filter((j) => j.phase === col);
             return (

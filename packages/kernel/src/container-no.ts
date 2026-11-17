@@ -34,6 +34,15 @@ export function validateContainerNo(raw: string): { valid: true; value: string }
   return { valid: true, value };
 }
 
+/**
+ * Prototype check: 11 letters/digits after tidying (no check-digit maths).
+ * Switch callers back to validateContainerNo for the full ISO 6346 check.
+ */
+export function checkContainerLength(raw: string): { valid: true; value: string } | { valid: false; value: string; error: 'LENGTH' } {
+  const value = normaliseContainerNo(raw);
+  return /^[A-Z0-9]{11}$/.test(value) ? { valid: true, value } : { valid: false, value, error: 'LENGTH' };
+}
+
 /** Parse a pasted list (newline, comma, tab or space separated) into unique normalised container numbers. */
 export function parseContainerList(text: string): string[] {
   const seen = new Set<string>();

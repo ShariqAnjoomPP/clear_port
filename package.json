@@ -2,22 +2,31 @@
   "name": "clearport",
   "private": true,
   "version": "0.1.0",
-  "description": "ClearPort — customs clearance and delivery management for port clearing agents",
-  "workspaces": ["packages/*", "apps/*", "infra"],
-  "engines": { "node": ">=22" },
+  "description": "ClearPort Lite — customs clearance and delivery management for port clearing agents (prototype)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "db:bootstrap": "npm run bootstrap -w @clearport/api",
     "db:migrate": "npm run migrate -w @clearport/api",
     "db:seed": "npm run seed -w @clearport/api",
     "db:reset": "npm run reset -w @clearport/api",
-    "setup": "npm run db:up && npm run db:bootstrap && npm run db:migrate && npm run db:seed",
+    "setup": "npm run db:reset",
     "dev": "turbo run dev --parallel --filter=@clearport/api --filter=@clearport/web",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "lint:boundaries": "depcruise apps/api/src --config .dependency-cruiser.cjs"
+    "lint:boundaries": "depcruise apps/api/src --config .dependency-cruiser.cjs",
+    "smoke:lambdas": "npm run build -w @clearport/api && npm run smoke:lambdas -w @clearport/api",
+    "db:demo": "npm run demo -w @clearport/api",
+    "db:setup:remote": "npm run migrate -w @clearport/api && npm run seed -w @clearport/api",
+    "db:demo-password": "npm run demo-password -w @clearport/api",
+    "build:vercel": "node scripts/build-vercel.mjs"
   },
   "devDependencies": {
     "dependency-cruiser": "^16.10.0",
